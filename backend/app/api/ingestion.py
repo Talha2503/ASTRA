@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.ingestion import fetch_and_store_light_curve
+from app.services.batch_ingestion import batch_ingest
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
 
@@ -13,3 +14,9 @@ def ingest_light_curve(target_id: str, mission: str = "TESS", db: Session = Depe
         return {"id": lc.id, "target_id": lc.target_id, "mission": lc.mission, "n_points": lc.meta["n_points"]}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/batch-fetch")
+def batch_fetch_light_curves(target_ids: list[str], mission: str = "Kepler", db: Session = Depends(get_db)):
+    results = batch_ingest(db, target_ids, mission)
+    return {"results": results}
