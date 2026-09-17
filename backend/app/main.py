@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import ingestion, analysis, candidates
+from app.api import ingestion, analysis, candidates, investigations
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -16,6 +16,7 @@ app.add_middleware(
 app.include_router(ingestion.router)
 app.include_router(analysis.router)
 app.include_router(candidates.router)
+app.include_router(investigations.router)
 
 @app.get("/health")
 def health_check():
