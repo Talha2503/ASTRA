@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.models import Investigation, AgentRun, Hypothesis
+from app.models.models import Investigation, AgentRun, Hypothesis, Evidence
 from app.agents.orchestrator import run_investigation
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
@@ -25,6 +25,7 @@ def get_investigation(investigation_id: str, db: Session = Depends(get_db)):
 
     agent_runs = db.query(AgentRun).filter(AgentRun.investigation_id == investigation_id).all()
     hypotheses = db.query(Hypothesis).filter(Hypothesis.investigation_id == investigation_id).all()
+    evidence_items = db.query(Evidence).filter(Evidence.investigation_id == investigation_id).all()
 
     return {
         "investigation_id": investigation.id,
@@ -48,5 +49,15 @@ def get_investigation(investigation_id: str, db: Session = Depends(get_db)):
                 "status": h.status,
             }
             for h in hypotheses
+        ],
+        "evidence": [
+            {
+                "id": e.id,
+                "source_agent": e.source_agent,
+                "content": e.content,
+                "supports": e.supports,
+                "hypothesis_id": e.hypothesis_id,
+            }
+            for e in evidence_items
         ],
     }
