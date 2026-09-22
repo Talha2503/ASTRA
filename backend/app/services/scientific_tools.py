@@ -17,7 +17,7 @@ def run_transit_search(time, flux, min_period_days=1.0, max_period_days=None):
     max_duration = min(0.3, min_period_days * 0.4)
     durations = np.linspace(0.01, max_duration, 10)
 
-    # Estimate per-point flux uncertainty from the data itself (needed for depth_snr)
+    # Estimate per-point flux uncertainty from the data itself
     flux_err_estimate = np.full_like(flux, np.std(flux))
 
     bls = BoxLeastSquares(time, flux, dy=flux_err_estimate)
@@ -29,28 +29,27 @@ def run_transit_search(time, flux, min_period_days=1.0, max_period_days=None):
     best_duration = periodogram.duration[best_idx]
     best_t0 = periodogram.transit_time[best_idx]
 
-    stats_result = bls.compute_stats(best_period, best_duration, best_t0)
+    # depth, depth_err, depth_snr are already available directly on the periodogram result,
+    # aligned with the period grid — no need for compute_stats() for these
+    best_depth = float(periodogram.depth[best_idx])
+    best_depth_snr = float(periodogram.depth_snr[best_idx])
 
-    def safe_get(key, default=None):
-        val = stats_result.get(key)
-        if val is None:
-            return default
-        try:
-            return float(val[0])
-        except (TypeError, IndexError):
-            return float(val)
-
-    depth_odd = safe_get("depth_odd")
-    depth_even = safe_get("depth_even")
-    odd_even_diff = abs(depth_odd - depth_even) if (depth_odd is not None and depth_even is not None) else None
+    # compute_stats gives us the odd/even comparison, which isn't on the periodogram directly
+    try:
+        stats_result = bls.compute_stats(best_period, best_duration, best_t0)
+        depth_odd = float(stats_result["depth_odd"][0][0])
+        depth_even = float(stats_result["depth_even"][0][0])
+        odd_even_diff = abs(depth_odd - depth_even)
+    except Exception:
+        odd_even_diff = None
 
     return {
         "best_period_days": float(best_period),
         "best_power": float(best_power),
         "best_duration_days": float(best_duration),
         "best_t0": float(best_t0),
-        "transit_depth": safe_get("depth"),
-        "transit_depth_snr": safe_get("depth_snr"),
+        "transit_depth": best_depth,
+        "transit_depth_snr": best_depth_snr,
         "odd_even_depth_diff": odd_even_diff,
     }
 

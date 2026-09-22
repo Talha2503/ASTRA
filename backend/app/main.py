@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import ingestion, analysis, candidates, investigations
+from app.api import ingestion, analysis, candidates, investigations, events
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -17,6 +17,7 @@ app.include_router(ingestion.router)
 app.include_router(analysis.router)
 app.include_router(candidates.router)
 app.include_router(investigations.router)
+app.include_router(events.router)
 
 @app.get("/health")
 def health_check():
