@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  --void: #050a18;
+  --nebula: #0e1a3a;
+  --nebula-raised: #132350;
+  --ion: #3fa9f5;
+  --aurora: #5ee1e6;
+  --starlight: #e6eeff;
+  --dust: #7e8db0;
+  --ember: #f2a65a;
+  --line: rgba(110, 150, 230, 0.16);
+}
+
+@theme inline {
+  --color-void: var(--void);
+  --color-nebula: var(--nebula);
+  --color-nebula-raised: var(--nebula-raised);
+  --color-ion: var(--ion);
+  --color-aurora: var(--aurora);
+  --color-starlight: var(--starlight);
+  --color-dust: var(--dust);
+  --color-ember: var(--ember);
+  --color-line: var(--line);
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: var(--void);
+  color-scheme: dark;
+}
+
+body {
+  color: var(--starlight);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Quiet, static starfield + nebula glow behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgba(230, 238, 255, 0.85), transparent),
+    radial-gradient(1px 1px at 130px 90px, rgba(230, 238, 255, 0.55), transparent),
+    radial-gradient(1.5px 1.5px at 210px 160px, rgba(94, 225, 230, 0.7), transparent),
+    radial-gradient(1px 1px at 70px 190px, rgba(230, 238, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 250px 40px, rgba(63, 169, 245, 0.7), transparent),
+    radial-gradient(60% 50% at 85% 0%, rgba(63, 169, 245, 0.16), transparent 70%),
+    radial-gradient(50% 45% at 0% 100%, rgba(94, 225, 230, 0.09), transparent 70%);
+  background-size:
+    280px 230px, 340px 270px, 410px 310px, 230px 250px, 370px 290px,
+    100% 100%, 100% 100%;
+}
+
+/* Surfaces */
+.panel {
+  background: linear-gradient(180deg, rgba(19, 35, 80, 0.55), rgba(14, 26, 58, 0.55));
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+
+.glow-ion {
+  box-shadow: 0 0 0 1px rgba(63, 169, 245, 0.25), 0 0 32px rgba(63, 169, 245, 0.18);
+}
+
+.glow-ember {
+  box-shadow: 0 0 0 1px rgba(242, 166, 90, 0.3), 0 0 32px rgba(242, 166, 90, 0.2);
+}
+
+/* Accessibility */
+:focus-visible {
+  outline: 2px solid var(--aurora);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
