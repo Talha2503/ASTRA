@@ -2,14 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Orbit, Telescope } from "lucide-react";
 import { api } from "@/lib/api";
 
 const NAV = [
-  { href: "/", label: "Overview", icon: Orbit },
-  { href: "/discoveries", label: "Discoveries", icon: Telescope },
+  { href: "/", label: "Overview", icon: Orbit, also: [] as string[] },
+  {
+    href: "/discoveries",
+    label: "Discoveries",
+    icon: Telescope,
+    also: ["/candidates"],
+  },
 ];
+
+function isActive(
+  href: string,
+  also: string[],
+  pathname: string | null,
+): boolean {
+  if (pathname === null) return false;
+  if (href === "/") return pathname === "/";
+  return [href, ...also].some((p) => pathname.startsWith(p));
+}
 
 function Mark() {
   return (
@@ -54,8 +69,39 @@ function useBackendStatus() {
   return online;
 }
 
-export function Shell({ children }: { children: React.ReactNode }) {
+function NavItems({ pathname }: { pathname: string | null }) {
+  return (
+    <>
+      {NAV.map(({ href, label, icon: Icon, also }) => {
+        const active = isActive(href, also, pathname);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-label={label}
+            title={label}
+            aria-current={active ? "page" : undefined}
+            className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+              active
+                ? "bg-ion/15 text-aurora glow-ion"
+                : "text-dust hover:bg-white/5 hover:text-starlight"
+            }`}
+          >
+            <Icon size={20} strokeWidth={1.75} />
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+// The only piece that reads the URL, so it is the only piece inside Suspense.
+function ActiveNav() {
   const pathname = usePathname();
+  return <NavItems pathname={pathname} />;
+}
+
+export function Shell({ children }: { children: React.ReactNode }) {
   const online = useBackendStatus();
 
   const statusText =
@@ -81,26 +127,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Mark />
         </Link>
 
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-label={label}
-              title={label}
-              aria-current={active ? "page" : undefined}
-              className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
-                active
-                  ? "bg-ion/15 text-aurora glow-ion"
-                  : "text-dust hover:bg-white/5 hover:text-starlight"
-              }`}
-            >
-              <Icon size={20} strokeWidth={1.75} />
-            </Link>
-          );
-        })}
+        <Suspense fallback={<NavItems pathname={null} />}>
+          <ActiveNav />
+        </Suspense>
       </nav>
 
       <div className="pb-20 md:pb-0 md:pl-[72px]">
