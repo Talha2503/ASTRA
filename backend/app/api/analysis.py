@@ -1,5 +1,4 @@
 import io
-import base64
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -16,11 +15,16 @@ from app.services.features import extract_all_features
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
 
-@router.post("/process/{light_curve_id}")
-def process_light_curve(light_curve_id: str, db: Session = Depends(get_db)):
+def _get_light_curve(db: Session, light_curve_id: str) -> LightCurve:
     lc = db.query(LightCurve).filter(LightCurve.id == light_curve_id).first()
     if not lc:
         raise HTTPException(status_code=404, detail="Light curve not found")
+    return lc
+
+
+@router.post("/process/{light_curve_id}")
+def process_light_curve(light_curve_id: str, db: Session = Depends(get_db)):
+    lc = _get_light_curve(db, light_curve_id)
 
     processed = preprocess_light_curve(lc.time_data, lc.flux_data, lc.flux_err_data)
     features = extract_all_features(processed["time"], processed["flux"])
@@ -36,11 +40,25 @@ def process_light_curve(light_curve_id: str, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/curve/{light_curve_id}")
+def get_curve_data(light_curve_id: str, db: Session = Depends(get_db)):
+    """Cleaned, normalized light curve as JSON so the dashboard can draw its own chart."""
+    lc = _get_light_curve(db, light_curve_id)
+    processed = preprocess_light_curve(lc.time_data, lc.flux_data, lc.flux_err_data)
+
+    return {
+        "light_curve_id": light_curve_id,
+        "target_id": lc.target_id,
+        "mission": lc.mission,
+        "n_points": len(processed["time"]),
+        "time": processed["time"],
+        "flux": processed["flux"],
+    }
+
+
 @router.get("/plot/{light_curve_id}")
 def plot_light_curve(light_curve_id: str, db: Session = Depends(get_db)):
-    lc = db.query(LightCurve).filter(LightCurve.id == light_curve_id).first()
-    if not lc:
-        raise HTTPException(status_code=404, detail="Light curve not found")
+    lc = _get_light_curve(db, light_curve_id)
 
     processed = preprocess_light_curve(lc.time_data, lc.flux_data, lc.flux_err_data)
 
