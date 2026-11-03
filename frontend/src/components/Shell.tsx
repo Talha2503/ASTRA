@@ -12,7 +12,7 @@ const NAV = [
     href: "/discoveries",
     label: "Discoveries",
     icon: Telescope,
-    also: ["/candidates"],
+    also: ["/candidates", "/investigations"],
   },
 ];
 

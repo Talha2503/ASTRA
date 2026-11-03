@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import {
   CartesianGrid,
@@ -15,7 +15,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { API_URL } from "@/lib/api";
+import { API_URL, api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
   type Candidate,
@@ -24,6 +24,7 @@ import {
   ringIndex,
 } from "@/lib/candidates";
 import {
+  FINISHED_STATES,
   type InvestigationDetail,
   asNumber,
   asText,
@@ -231,6 +232,9 @@ function Measurements({
 
 export function CandidateView() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
 
   const candidate = useApi<CandidateDetail>(`/candidates/${id}`);
   const c = candidate.status === "ready" ? candidate.data : null;
@@ -278,6 +282,28 @@ export function CandidateView() {
   }
 
   const color = planetColor(c);
+  const latestId = c.latest_investigation_id;
+  const latestState = c.latest_investigation_state;
+  const running =
+    latestId !== null &&
+    latestState !== null &&
+    !FINISHED_STATES.includes(latestState);
+
+  const launch = async () => {
+    setLaunching(true);
+    setLaunchError(null);
+    try {
+      const res = await api<{ investigation_id: string }>(
+        `/investigations/launch/${c.candidate_id}`,
+        { method: "POST" },
+      );
+      router.push(`/investigations/${res.investigation_id}`);
+    } catch (e) {
+      setLaunchError((e as Error).message);
+    } finally {
+      setLaunching(false);
+    }
+  };
 
   return (
     <div>
@@ -393,9 +419,20 @@ export function CandidateView() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="panel rounded-3xl p-6">
-          <h2 className="font-display text-xl font-semibold">
-            What the agents concluded
-          </h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-xl font-semibold">
+              What the agents concluded
+            </h2>
+            {latestId && (
+              <Link
+                href={`/investigations/${latestId}`}
+                className="text-sm text-aurora hover:underline"
+              >
+                View the agent timeline
+              </Link>
+            )}
+          </div>
+
           <div className="mt-4">
             {c.n_investigations === 0 ? (
               <p className="text-sm text-dust">
@@ -409,6 +446,56 @@ export function CandidateView() {
               </p>
             ) : (
               <p className="text-sm text-dust">Loading the latest investigation.</p>
+            )}
+          </div>
+
+          <div className="mt-6 border-t border-line pt-5">
+            {running ? (
+              <>
+                <Link
+                  href={`/investigations/${latestId}`}
+                  className="inline-block rounded-xl bg-ion/15 px-4 py-2.5 text-sm font-medium text-aurora transition-colors hover:bg-ion/25"
+                >
+                  Watch the live run
+                </Link>
+                <p className="mt-2 text-sm text-dust">
+                  An investigation is already running on this star. If it looks
+                  stuck,{" "}
+                  <button
+                    type="button"
+                    disabled={launching}
+                    onClick={() => void launch()}
+                    className="text-aurora underline-offset-2 hover:underline disabled:opacity-60"
+                  >
+                    start a new one
+                  </button>
+                  .
+                </p>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={launching}
+                  onClick={() => void launch()}
+                  className="rounded-xl bg-ion/15 px-4 py-2.5 text-sm font-medium text-aurora transition-colors hover:bg-ion/25 disabled:opacity-60"
+                >
+                  {launching
+                    ? "Starting a new run"
+                    : c.n_investigations === 0
+                      ? "Run investigation"
+                      : "Run another investigation"}
+                </button>
+                <p className="mt-2 text-sm text-dust">
+                  Each run uses eight AI calls, one per agent, and usually takes
+                  under a minute.
+                </p>
+              </>
+            )}
+            {launchError && (
+              <p className="mt-2 text-sm text-ember">
+                Couldn&apos;t start an investigation: {launchError}
+              </p>
             )}
           </div>
         </section>
