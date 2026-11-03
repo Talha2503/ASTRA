@@ -1,6 +1,8 @@
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 
+from app.core.database import SessionLocal
 from app.models.models import Investigation, Candidate
 from app.agents.data_agent import DataAgent
 from app.agents.astronomy_analyst import AstronomyAnalystAgent
@@ -13,8 +15,18 @@ from app.agents.discovery_ranker import DiscoveryRankerAgent
 from app.services.evidence import create_evidence
 from app.services.event_bus import publish
 
+logger = logging.getLogger(__name__)
 
-def run_investigation(db: Session, candidate_id: str) -> dict:
+
+def _ensure_ok(result: dict) -> dict:
+    """A failed agent stops the investigation instead of feeding empty inputs to the next one."""
+    if result.get("status") != "completed":
+        error = (result.get("output") or {}).get("error", "unknown error")
+        raise RuntimeError(f"{result.get('agent_name')} failed: {error}")
+    return result
+
+
+def create_investigation(db: Session, candidate_id: str) -> Investigation:
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise ValueError(f"Candidate {candidate_id} not found")
@@ -27,8 +39,19 @@ def run_investigation(db: Session, candidate_id: str) -> dict:
     db.add(investigation)
     db.commit()
     db.refresh(investigation)
+    return investigation
 
-    investigation_id = investigation.id
+
+def execute_investigation(db: Session, investigation_id: str) -> dict:
+    investigation = db.query(Investigation).filter(Investigation.id == investigation_id).first()
+    if not investigation:
+        raise ValueError(f"Investigation {investigation_id} not found")
+
+    candidate = db.query(Candidate).filter(Candidate.id == investigation.candidate_id).first()
+    if not candidate:
+        raise ValueError(f"Candidate {investigation.candidate_id} not found")
+
+    candidate_id = candidate.id
     agent_outputs = {}
 
     def set_state(state: str):
@@ -36,69 +59,90 @@ def run_investigation(db: Session, candidate_id: str) -> dict:
         db.commit()
         publish(investigation_id, {"investigation_id": investigation_id, "state": state})
 
+    def agent_done(name: str):
+        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": name})
+
     try:
         set_state("data_analysis")
-        data_agent = DataAgent()
-        data_result = data_agent.run_and_log(db, investigation_id, {"candidate_id": candidate_id})
+        data_result = _ensure_ok(
+            DataAgent().run_and_log(db, investigation_id, {"candidate_id": candidate_id})
+        )
         agent_outputs["data_agent"] = data_result
         create_evidence(db, investigation_id, "data_agent", data_result["output"].get("summary", ""), supports="neutral")
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "data_agent"})
+        agent_done("data_agent")
 
         set_state("astronomy_analysis")
-        analyst_agent = AstronomyAnalystAgent()
-        analyst_input = {
-            "data_summary": data_result["output"].get("summary"),
-            "features": data_result["output"].get("features"),
-        }
-        analyst_result = analyst_agent.run_and_log(db, investigation_id, analyst_input)
+        analyst_result = _ensure_ok(
+            AstronomyAnalystAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "data_summary": data_result["output"].get("summary"),
+                    "features": data_result["output"].get("features"),
+                },
+            )
+        )
         agent_outputs["astronomy_analyst"] = analyst_result
         create_evidence(db, investigation_id, "astronomy_analyst", analyst_result["output"].get("interpretation", ""), supports="neutral")
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "astronomy_analyst"})
+        agent_done("astronomy_analyst")
 
         set_state("research")
-        research_agent = ResearchAgent()
-        research_input = {
-            "interpretation": analyst_result["output"].get("interpretation"),
-            "possible_causes": analyst_result["output"].get("possible_causes"),
-        }
-        research_result = research_agent.run_and_log(db, investigation_id, research_input)
+        research_result = _ensure_ok(
+            ResearchAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "interpretation": analyst_result["output"].get("interpretation"),
+                    "possible_causes": analyst_result["output"].get("possible_causes"),
+                },
+            )
+        )
         agent_outputs["research_agent"] = research_result
         create_evidence(db, investigation_id, "research_agent", research_result["output"].get("background_context", ""), supports="neutral")
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "research_agent"})
+        agent_done("research_agent")
 
         set_state("scientific_tools")
-        tool_agent = ScientificToolAgent()
-        tool_result = tool_agent.run_and_log(db, investigation_id, {"candidate_id": candidate_id})
+        tool_result = _ensure_ok(
+            ScientificToolAgent().run_and_log(db, investigation_id, {"candidate_id": candidate_id})
+        )
         agent_outputs["scientific_tool_agent"] = tool_result
         create_evidence(
             db, investigation_id, "scientific_tool_agent",
             str(tool_result["output"].get("interpretation", "")),
             supports="neutral",
         )
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "scientific_tool_agent"})
+        agent_done("scientific_tool_agent")
 
         set_state("hypothesis")
-        hypothesis_agent = HypothesisAgent()
-        hypothesis_input = {
-            "data_summary": data_result["output"].get("summary"),
-            "interpretation": analyst_result["output"].get("interpretation"),
-            "possible_causes": analyst_result["output"].get("possible_causes"),
-            "background_context": research_result["output"].get("background_context"),
-        }
-        hypothesis_result = hypothesis_agent.run_and_log(db, investigation_id, hypothesis_input)
+        hypothesis_result = _ensure_ok(
+            HypothesisAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "data_summary": data_result["output"].get("summary"),
+                    "interpretation": analyst_result["output"].get("interpretation"),
+                    "possible_causes": analyst_result["output"].get("possible_causes"),
+                    "background_context": research_result["output"].get("background_context"),
+                },
+            )
+        )
         agent_outputs["hypothesis_agent"] = hypothesis_result
         hypothesis_id = hypothesis_result["output"].get("hypothesis_id")
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "hypothesis_agent"})
+        agent_done("hypothesis_agent")
 
         set_state("critique")
-        critic_agent = CriticAgent()
-        critic_input = {
-            "hypothesis_id": hypothesis_id,
-            "hypothesis": hypothesis_result["output"].get("hypothesis"),
-            "confidence": hypothesis_result["output"].get("confidence"),
-            "tool_evidence": tool_result["output"].get("interpretation"),
-        }
-        critic_result = critic_agent.run_and_log(db, investigation_id, critic_input)
+        critic_result = _ensure_ok(
+            CriticAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "hypothesis_id": hypothesis_id,
+                    "hypothesis": hypothesis_result["output"].get("hypothesis"),
+                    "confidence": hypothesis_result["output"].get("confidence"),
+                    "tool_evidence": tool_result["output"].get("interpretation"),
+                },
+            )
+        )
         agent_outputs["critic_agent"] = critic_result
         create_evidence(
             db, investigation_id, "critic_agent",
@@ -106,43 +150,54 @@ def run_investigation(db: Session, candidate_id: str) -> dict:
             hypothesis_id=hypothesis_id,
             supports="contradicts" if critic_result["output"].get("verdict") == "not_supported" else "supports",
         )
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "critic_agent"})
+        agent_done("critic_agent")
 
         set_state("evidence_aggregation")
-        aggregator_agent = EvidenceAggregatorAgent()
-        aggregator_input = {
-            "hypothesis": hypothesis_result["output"].get("hypothesis"),
-            "critic_verdict": critic_result["output"].get("verdict"),
-            "critic_confidence": critic_result["output"].get("revised_confidence"),
-        }
-        aggregator_result = aggregator_agent.run_and_log(db, investigation_id, aggregator_input)
+        aggregator_result = _ensure_ok(
+            EvidenceAggregatorAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "hypothesis": hypothesis_result["output"].get("hypothesis"),
+                    "critic_verdict": critic_result["output"].get("verdict"),
+                    "critic_confidence": critic_result["output"].get("revised_confidence"),
+                },
+            )
+        )
         agent_outputs["evidence_aggregator"] = aggregator_result
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "evidence_aggregator"})
+        agent_done("evidence_aggregator")
 
         set_state("ranking")
-        ranker_agent = DiscoveryRankerAgent()
-        ranker_input = {
-            "candidate_id": candidate_id,
-            "anomaly_score": candidate.anomaly_score,
-            "critic_confidence": critic_result["output"].get("revised_confidence", 0.0),
-            "evidence_quality": aggregator_result["output"].get("evidence_quality", "weak"),
-            "final_recommendation": aggregator_result["output"].get("final_recommendation", "low_priority"),
-            "overall_assessment": aggregator_result["output"].get("overall_assessment", ""),
-        }
-        ranker_result = ranker_agent.run_and_log(db, investigation_id, ranker_input)
+        ranker_result = _ensure_ok(
+            DiscoveryRankerAgent().run_and_log(
+                db,
+                investigation_id,
+                {
+                    "candidate_id": candidate_id,
+                    "anomaly_score": candidate.anomaly_score,
+                    "critic_confidence": critic_result["output"].get("revised_confidence", 0.0),
+                    "evidence_quality": aggregator_result["output"].get("evidence_quality", "weak"),
+                    "final_recommendation": aggregator_result["output"].get("final_recommendation", "low_priority"),
+                    "overall_assessment": aggregator_result["output"].get("overall_assessment", ""),
+                },
+            )
+        )
         agent_outputs["discovery_ranker"] = ranker_result
-        publish(investigation_id, {"investigation_id": investigation_id, "agent_completed": "discovery_ranker"})
+        agent_done("discovery_ranker")
 
-        set_state("completed")
         investigation.completed_at = datetime.utcnow()
-        db.commit()
+        set_state("completed")
         publish(investigation_id, {"investigation_id": investigation_id, "state": "completed", "done": True})
 
     except Exception as e:
+        db.rollback()
         investigation.state = "failed"
         db.commit()
         agent_outputs["error"] = str(e)
-        publish(investigation_id, {"investigation_id": investigation_id, "state": "failed", "error": str(e), "done": True})
+        publish(
+            investigation_id,
+            {"investigation_id": investigation_id, "state": "failed", "error": str(e), "done": True},
+        )
 
     return {
         "investigation_id": investigation_id,
@@ -150,3 +205,20 @@ def run_investigation(db: Session, candidate_id: str) -> dict:
         "final_state": investigation.state,
         "agent_outputs": agent_outputs,
     }
+
+
+def run_investigation(db: Session, candidate_id: str) -> dict:
+    """Create and run an investigation, blocking until it finishes."""
+    investigation = create_investigation(db, candidate_id)
+    return execute_investigation(db, investigation.id)
+
+
+def run_in_background(investigation_id: str) -> None:
+    """Run an already-created investigation with its own database session."""
+    db = SessionLocal()
+    try:
+        execute_investigation(db, investigation_id)
+    except Exception:
+        logger.exception("Investigation %s crashed", investigation_id)
+    finally:
+        db.close()

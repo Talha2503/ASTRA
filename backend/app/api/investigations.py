@@ -1,20 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.models import Investigation, AgentRun, Hypothesis, Evidence
-from app.agents.orchestrator import run_investigation
+from app.agents.orchestrator import (
+    create_investigation,
+    run_in_background,
+    run_investigation,
+)
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 
 
 @router.post("/start/{candidate_id}")
 def start_investigation(candidate_id: str, db: Session = Depends(get_db)):
+    """Runs the whole investigation and only responds when it has finished."""
     try:
-        result = run_investigation(db, candidate_id)
-        return result
+        return run_investigation(db, candidate_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/launch/{candidate_id}")
+def launch_investigation(
+    candidate_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Starts an investigation in the background and responds straight away with its ID."""
+    try:
+        investigation = create_investigation(db, candidate_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    investigation_id = investigation.id
+    state = investigation.state
+    background_tasks.add_task(run_in_background, investigation_id)
+    return {
+        "investigation_id": investigation_id,
+        "candidate_id": candidate_id,
+        "state": state,
+    }
 
 
 @router.get("/{investigation_id}")
@@ -23,8 +49,18 @@ def get_investigation(investigation_id: str, db: Session = Depends(get_db)):
     if not investigation:
         raise HTTPException(status_code=404, detail="Investigation not found")
 
-    agent_runs = db.query(AgentRun).filter(AgentRun.investigation_id == investigation_id).all()
-    hypotheses = db.query(Hypothesis).filter(Hypothesis.investigation_id == investigation_id).all()
+    agent_runs = (
+        db.query(AgentRun)
+        .filter(AgentRun.investigation_id == investigation_id)
+        .order_by(AgentRun.started_at)
+        .all()
+    )
+    hypotheses = (
+        db.query(Hypothesis)
+        .filter(Hypothesis.investigation_id == investigation_id)
+        .order_by(Hypothesis.created_at)
+        .all()
+    )
     evidence_items = db.query(Evidence).filter(Evidence.investigation_id == investigation_id).all()
 
     return {
@@ -38,6 +74,8 @@ def get_investigation(investigation_id: str, db: Session = Depends(get_db)):
                 "agent_name": r.agent_name,
                 "status": r.status,
                 "output_data": r.output_data,
+                "started_at": r.started_at,
+                "completed_at": r.completed_at,
             }
             for r in agent_runs
         ],
