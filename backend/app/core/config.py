@@ -6,6 +6,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "openai/gpt-oss-120b"
+    ADMIN_EMAIL: str = ""
+    ADMIN_PASSWORD: str = ""
+    AUTH_SECRET: str = ""
+    TOKEN_HOURS: int = 12
 
     class Config:
         env_file = ".env"

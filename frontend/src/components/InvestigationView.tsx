@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import { useApi } from "@/lib/useApi";
 import type { Candidate } from "@/lib/candidates";
 import {
@@ -59,7 +60,13 @@ function useLiveInvestigation(id: string) {
     }
 
     void load();
-    source = new EventSource(`${API_URL}/events/investigations/${id}/stream`);
+
+    // The browser's EventSource cannot send headers, so the token goes in the URL.
+    const token = getToken();
+    const streamUrl = `${API_URL}/events/investigations/${id}/stream${
+      token ? `?access_token=${encodeURIComponent(token)}` : ""
+    }`;
+    source = new EventSource(streamUrl);
     source.onmessage = () => {
       void load();
     };

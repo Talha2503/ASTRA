@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Orbit, Telescope } from "lucide-react";
+import { LogOut, Orbit, Telescope } from "lucide-react";
 import { api } from "@/lib/api";
+import { clearToken } from "@/lib/auth";
 
 const NAV = [
   { href: "/", label: "Overview", icon: Orbit, also: [] as string[] },
@@ -102,7 +103,13 @@ function ActiveNav() {
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const online = useBackendStatus();
+
+  function signOut() {
+    clearToken();
+    router.replace("/login");
+  }
 
   const statusText =
     online === null
@@ -137,13 +144,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <span className="font-display text-sm font-semibold tracking-wide">
             ASTRA
           </span>
-          <span
-            className="flex items-center gap-2 text-sm text-dust"
-            role="status"
-          >
-            <span className={`h-2 w-2 rounded-full ${dotColor}`} />
-            {statusText}
-          </span>
+          <div className="flex items-center gap-4">
+            <span
+              className="flex items-center gap-2 text-sm text-dust"
+              role="status"
+            >
+              <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+              {statusText}
+            </span>
+            <button
+              type="button"
+              onClick={signOut}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-dust transition-colors hover:bg-white/5 hover:text-starlight"
+            >
+              <LogOut size={16} aria-hidden="true" />
+              Sign out
+            </button>
+          </div>
         </header>
 
         <main className="mx-auto w-full max-w-[1400px] px-6 py-8">
