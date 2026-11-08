@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LogOut, Orbit, Telescope } from "lucide-react";
+import { Bot, LogOut, Orbit, Telescope } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 
@@ -15,6 +15,7 @@ const NAV = [
     icon: Telescope,
     also: ["/candidates", "/investigations"],
   },
+  { href: "/agents", label: "Agents", icon: Bot, also: [] as string[] },
 ];
 
 function isActive(
