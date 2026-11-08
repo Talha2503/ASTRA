@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Bot, LogOut, Orbit, Telescope } from "lucide-react";
+import { Bot, FileText, LogOut, Orbit, Telescope } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 
@@ -16,6 +16,7 @@ const NAV = [
     also: ["/candidates", "/investigations"],
   },
   { href: "/agents", label: "Agents", icon: Bot, also: [] as string[] },
+  { href: "/reports", label: "Reports", icon: FileText, also: [] as string[] },
 ];
 
 function isActive(
@@ -125,7 +126,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <nav
         aria-label="Main"
-        className="panel fixed inset-x-0 bottom-0 z-30 flex h-16 items-center justify-around border-t md:top-0 md:right-auto md:h-auto md:w-[72px] md:flex-col md:justify-start md:gap-2 md:border-t-0 md:border-r md:py-5"
+        className="panel fixed inset-x-0 bottom-0 z-30 flex h-16 items-center justify-around border-t md:top-0 md:right-auto md:h-auto md:w-[72px] md:flex-col md:justify-start md:gap-2 md:border-t-0 md:border-r md:py-5 print:hidden"
       >
         <Link
           href="/"
@@ -140,8 +141,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </Suspense>
       </nav>
 
-      <div className="pb-20 md:pb-0 md:pl-[72px]">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-void/70 px-6 backdrop-blur-md">
+      <div className="pb-20 md:pb-0 md:pl-[72px] print:pb-0 print:pl-0">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-void/70 px-6 backdrop-blur-md print:hidden">
           <span className="font-display text-sm font-semibold tracking-wide">
             ASTRA
           </span>
@@ -164,7 +165,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1400px] px-6 py-8">
+        <main className="mx-auto w-full max-w-[1400px] px-6 py-8 print:max-w-none print:p-0">
           {children}
         </main>
       </div>

@@ -89,3 +89,25 @@ body::before {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Printing: reports come out as plain dark-on-white pages */
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body::before {
+    display: none !important;
+  }
+
+  .report-sheet,
+  .report-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
