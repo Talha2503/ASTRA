@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { Bot, FileText, LogOut, Orbit, Telescope } from "lucide-react";
 import { api } from "@/lib/api";
-import { clearToken } from "@/lib/auth";
+import { clearToken, getRole, serverRole, subscribeAuth } from "@/lib/auth";
 
 const NAV = [
   { href: "/", label: "Overview", icon: Orbit, also: [] as string[] },
@@ -107,6 +107,7 @@ function ActiveNav() {
 export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const online = useBackendStatus();
+  const role = useSyncExternalStore(subscribeAuth, getRole, serverRole);
 
   function signOut() {
     clearToken();
@@ -142,17 +143,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="pb-20 md:pb-0 md:pl-[72px] print:pb-0 print:pl-0">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-void/70 px-6 backdrop-blur-md print:hidden">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-void/70 px-4 backdrop-blur-md sm:px-6 print:hidden">
           <span className="font-display text-sm font-semibold tracking-wide">
             ASTRA
           </span>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {role === "viewer" && (
+              <span className="rounded-full bg-ember/15 px-3 py-1 text-xs font-medium text-ember">
+                Demo, read-only
+              </span>
+            )}
             <span
               className="flex items-center gap-2 text-sm text-dust"
               role="status"
             >
               <span className={`h-2 w-2 rounded-full ${dotColor}`} />
-              {statusText}
+              <span className="hidden sm:inline">{statusText}</span>
+              <span className="sr-only sm:hidden">{statusText}</span>
             </span>
             <button
               type="button"

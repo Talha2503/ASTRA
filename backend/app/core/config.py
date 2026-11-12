@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
     AUTH_SECRET: str = ""
     TOKEN_HOURS: int = 12
+    DEMO_ENABLED: bool = False
 
     class Config:
         env_file = ".env"

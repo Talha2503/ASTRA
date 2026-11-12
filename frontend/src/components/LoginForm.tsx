@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { API_URL, LoginError, type LoginFailure, login } from "@/lib/api";
+import {
+  API_URL,
+  LoginError,
+  type LoginFailure,
+  login,
+  startDemo,
+} from "@/lib/api";
 import { authStatus, serverAuthStatus, subscribeAuth } from "@/lib/auth";
 
 const RINGS = [
@@ -11,6 +17,8 @@ const RINGS = [
   { r: 345, seconds: 160, phase: 0.7, color: "#3FA9F5", size: 17 },
   { r: 450, seconds: 230, phase: 0.3, color: "#7E8DB0", size: 11 },
 ];
+
+type Source = "demo" | "admin";
 
 function problemText(reason: LoginFailure): string {
   switch (reason) {
@@ -22,6 +30,8 @@ function problemText(reason: LoginFailure): string {
       return `Can't reach the backend at ${API_URL}. Start it with uvicorn, then try again.`;
     case "storage":
       return "Your browser is blocking local storage, so the login can't be remembered. Allow storage for this site and try again.";
+    case "demo_disabled":
+      return "The live demo is switched off right now. Please try again later.";
     default:
       return "Something went wrong. Try again.";
   }
@@ -105,25 +115,35 @@ export function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<LoginFailure | null>(null);
+  const [busy, setBusy] = useState<Source | null>(null);
+  const [problem, setProblem] = useState<{
+    reason: LoginFailure;
+    from: Source;
+  } | null>(null);
 
   // Already signed in: skip the form.
   useEffect(() => {
     if (status === "yes") router.replace("/");
   }, [status, router]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
+  async function run(source: Source, action: () => Promise<void>) {
+    setBusy(source);
     setProblem(null);
     try {
-      await login(email, password);
+      await action();
       router.replace("/");
     } catch (err) {
-      setProblem(err instanceof LoginError ? err.reason : "unknown");
-      setBusy(false);
+      setProblem({
+        reason: err instanceof LoginError ? err.reason : "unknown",
+        from: source,
+      });
+      setBusy(null);
     }
+  }
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void run("admin", () => login(email, password));
   }
 
   return (
@@ -151,14 +171,10 @@ export function LoginForm() {
           </h1>
           <p className="mt-4 text-dust">
             A team of AI agents investigates unusual stars in NASA light curve
-            data and ranks what deserves a closer look. Sign in to see what
-            they found.
+            data and ranks what deserves a closer look.
           </p>
 
-          <form
-            onSubmit={onSubmit}
-            className="panel glow-ion mt-8 rounded-3xl p-6"
-          >
+          <div className="panel glow-ion mt-8 rounded-3xl p-6">
             {expired && !problem && (
               <p
                 role="status"
@@ -168,48 +184,74 @@ export function LoginForm() {
               </p>
             )}
 
-            <label htmlFor="email" className="block text-sm text-dust">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-line bg-void/60 px-4 py-3 text-starlight placeholder:text-dust focus:border-ion"
-            />
-
-            <label htmlFor="password" className="mt-4 block text-sm text-dust">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-line bg-void/60 px-4 py-3 text-starlight placeholder:text-dust focus:border-ion"
-            />
-
-            {problem && (
-              <p role="alert" className="mt-4 text-sm text-ember">
-                {problemText(problem)}
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void run("demo", startDemo)}
+              className="w-full rounded-xl bg-ion px-4 py-3.5 text-sm font-semibold text-void transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {busy === "demo" ? "Opening the demo" : "View live demo"}
+            </button>
+            <p className="mt-2 text-sm text-dust">
+              Read-only. Look around, open any star, print a report. No sign-up
+              needed.
+            </p>
+            {problem?.from === "demo" && (
+              <p role="alert" className="mt-3 text-sm text-ember">
+                {problemText(problem.reason)}
               </p>
             )}
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="mt-6 w-full rounded-xl bg-ion px-4 py-3 text-sm font-semibold text-void transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {busy ? "Signing in" : "Sign in"}
-            </button>
-          </form>
+            <div className="my-6 flex items-center gap-3">
+              <span aria-hidden="true" className="h-px flex-1 bg-line" />
+              <h2 className="text-xs text-dust">Admin sign in</h2>
+              <span aria-hidden="true" className="h-px flex-1 bg-line" />
+            </div>
+
+            <form onSubmit={onSubmit}>
+              <label htmlFor="email" className="block text-sm text-dust">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-line bg-void/60 px-4 py-3 text-starlight placeholder:text-dust focus:border-ion"
+              />
+
+              <label htmlFor="password" className="mt-4 block text-sm text-dust">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-line bg-void/60 px-4 py-3 text-starlight placeholder:text-dust focus:border-ion"
+              />
+
+              {problem?.from === "admin" && (
+                <p role="alert" className="mt-4 text-sm text-ember">
+                  {problemText(problem.reason)}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy !== null}
+                className="mt-5 w-full rounded-xl bg-ion/15 px-4 py-3 text-sm font-semibold text-aurora transition-colors hover:bg-ion/25 disabled:opacity-60"
+              >
+                {busy === "admin" ? "Signing in" : "Sign in"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </main>

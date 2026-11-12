@@ -2,6 +2,7 @@ const KEY = "astra_token";
 const EVENT = "astra-auth-change";
 
 export type AuthStatus = "yes" | "no" | "unknown";
+export type Role = "admin" | "viewer";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -52,4 +53,26 @@ export function authStatus(): AuthStatus {
 // On the server we cannot know yet, so the page waits for the browser to answer.
 export function serverAuthStatus(): AuthStatus {
   return "unknown";
+}
+
+// Reads the role out of the token so the page can show or hide things.
+// This is only a display hint: the backend checks the signed token on every request.
+function decodeRole(token: string | null): Role | null {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const role = (JSON.parse(json) as { role?: unknown }).role;
+    return role === "admin" || role === "viewer" ? role : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getRole(): Role | null {
+  return decodeRole(getToken());
+}
+
+export function serverRole(): Role | null {
+  return null;
 }

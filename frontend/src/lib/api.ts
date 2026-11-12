@@ -29,6 +29,7 @@ export type LoginFailure =
   | "not_configured"
   | "unreachable"
   | "storage"
+  | "demo_disabled"
   | "unknown";
 
 export class LoginError extends Error {
@@ -37,6 +38,13 @@ export class LoginError extends Error {
   constructor(reason: LoginFailure) {
     super(reason);
     this.reason = reason;
+  }
+}
+
+async function storeTokenFrom(res: Response): Promise<void> {
+  const data = (await res.json()) as { access_token?: string };
+  if (!data.access_token || !setToken(data.access_token)) {
+    throw new LoginError("storage");
   }
 }
 
@@ -56,8 +64,21 @@ export async function login(email: string, password: string): Promise<void> {
   if (res.status === 503) throw new LoginError("not_configured");
   if (!res.ok) throw new LoginError("unknown");
 
-  const data = (await res.json()) as { access_token?: string };
-  if (!data.access_token || !setToken(data.access_token)) {
-    throw new LoginError("storage");
+  await storeTokenFrom(res);
+}
+
+// Signs in as the read-only demo account used for the public link.
+export async function startDemo(): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/auth/demo`, { method: "POST" });
+  } catch {
+    throw new LoginError("unreachable");
   }
+
+  if (res.status === 403) throw new LoginError("demo_disabled");
+  if (res.status === 503) throw new LoginError("not_configured");
+  if (!res.ok) throw new LoginError("unknown");
+
+  await storeTokenFrom(res);
 }
