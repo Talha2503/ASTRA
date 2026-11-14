@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -16,6 +16,7 @@ import {
   ZAxis,
 } from "recharts";
 import { API_URL, api } from "@/lib/api";
+import { getRole, serverRole, subscribeAuth } from "@/lib/auth";
 import { useApi } from "@/lib/useApi";
 import {
   type Candidate,
@@ -233,6 +234,7 @@ function Measurements({
 export function CandidateView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useSyncExternalStore(subscribeAuth, getRole, serverRole);
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
 
@@ -450,7 +452,12 @@ export function CandidateView() {
           </div>
 
           <div className="mt-6 border-t border-line pt-5">
-            {running ? (
+            {role === "viewer" ? (
+              <p className="text-sm text-dust">
+                This is a read-only demo. Investigations are started by the
+                admin, and everything you see here comes from earlier runs.
+              </p>
+            ) : running ? (
               <>
                 <Link
                   href={`/investigations/${latestId}`}

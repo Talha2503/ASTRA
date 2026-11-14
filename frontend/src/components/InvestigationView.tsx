@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { getRole, getToken, serverRole, subscribeAuth } from "@/lib/auth";
 import { useApi } from "@/lib/useApi";
 import type { Candidate } from "@/lib/candidates";
 import {
@@ -121,6 +121,7 @@ const STATUS_COLOR: Record<StepStatus, string> = {
 export function InvestigationView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const role = useSyncExternalStore(subscribeAuth, getRole, serverRole);
   const { inv, problem } = useLiveInvestigation(id);
   const star = useApi<Candidate>(
     inv ? `/candidates/${inv.candidate_id}` : null,
@@ -365,7 +366,7 @@ export function InvestigationView() {
             </section>
           )}
 
-          {finished && (
+          {finished && role !== "viewer" && (
             <div>
               <button
                 type="button"
