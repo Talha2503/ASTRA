@@ -1,7 +1,4 @@
 import io
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -58,6 +55,11 @@ def get_curve_data(light_curve_id: str, db: Session = Depends(get_db)):
 
 @router.get("/plot/{light_curve_id}")
 def plot_light_curve(light_curve_id: str, db: Session = Depends(get_db)):
+    import matplotlib  # heavy library: loaded only when a plot is requested
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     lc = _get_light_curve(db, light_curve_id)
 
     processed = preprocess_light_curve(lc.time_data, lc.flux_data, lc.flux_err_data)

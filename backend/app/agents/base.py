@@ -1,12 +1,21 @@
 import json
 from datetime import datetime
-from groq import Groq
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.models import AgentRun
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+_client = None
+
+
+def get_client():
+    """Create the Groq client the first time an agent needs it, not when the server starts."""
+    global _client
+    if _client is None:
+        from groq import Groq
+
+        _client = Groq(api_key=settings.GROQ_API_KEY)
+    return _client
 
 
 class BaseAgent:
@@ -14,7 +23,7 @@ class BaseAgent:
     system_prompt = "You are a helpful assistant."
 
     def call_llm(self, user_message: str, temperature: float = 0.3) -> str:
-        response = client.chat.completions.create(
+        response = get_client().chat.completions.create(
             model=settings.GROQ_MODEL,
             messages=[
                 {"role": "system", "content": self.system_prompt},
@@ -26,7 +35,7 @@ class BaseAgent:
 
     def call_llm_json(self, user_message: str, temperature: float = 0.3) -> dict:
         """Call the LLM and force a JSON object response."""
-        response = client.chat.completions.create(
+        response = get_client().chat.completions.create(
             model=settings.GROQ_MODEL,
             messages=[
                 {"role": "system", "content": self.system_prompt + "\n\nAlways respond with valid JSON only, no other text."},

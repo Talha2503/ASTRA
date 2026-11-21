@@ -1,9 +1,10 @@
-import lightkurve as lk
 from sqlalchemy.orm import Session
 from app.models.models import LightCurve
 
 
 def fetch_and_store_light_curve(db: Session, target_id: str, mission: str = "TESS"):
+    import lightkurve as lk  # heavy library: loaded only when a download runs
+
     search_result = lk.search_lightcurve(target_id, mission=mission, cadence="long")
     if len(search_result) == 0:
         raise ValueError(f"No light curve found for target {target_id} on mission {mission}")

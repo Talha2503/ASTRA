@@ -1,10 +1,10 @@
 import numpy as np
-from astropy.timeseries import BoxLeastSquares
-from scipy import stats
 
 
 def run_transit_search(time, flux, min_period_days=1.0, max_period_days=None):
     """Box Least Squares search — the standard algorithm for detecting transit-like dips."""
+    from astropy.timeseries import BoxLeastSquares  # heavy library: loaded only when this runs
+
     time = np.array(time, dtype=float)
     flux = np.array(flux, dtype=float)
 
@@ -56,6 +56,8 @@ def run_transit_search(time, flux, min_period_days=1.0, max_period_days=None):
 
 def run_statistical_significance_test(flux, baseline_flux=None):
     """Tests whether flux distribution deviates significantly from normal (Gaussian) noise."""
+    from scipy import stats  # heavy library: loaded only when this runs
+
     flux = np.array(flux, dtype=float)
 
     shapiro_stat, shapiro_p = stats.shapiro(flux[:5000])  # shapiro test caps at ~5000 samples

@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.ensemble import IsolationForest
 from sqlalchemy.orm import Session
 
 from app.models.models import LightCurve, Candidate
@@ -19,6 +18,8 @@ def features_to_vector(features: dict):
 
 
 def run_anomaly_detection(db: Session, contamination: float = 0.2):
+    from sklearn.ensemble import IsolationForest  # heavy library: loaded only when this runs
+
     light_curves = db.query(LightCurve).all()
     if len(light_curves) < 3:
         raise ValueError("Need at least 3 light curves to run anomaly detection")

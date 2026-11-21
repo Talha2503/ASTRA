@@ -1,9 +1,9 @@
 import numpy as np
-from scipy import stats
-from astropy.timeseries import LombScargle
 
 
 def extract_statistical_features(flux):
+    from scipy import stats  # heavy library: loaded only when this runs
+
     flux = np.array(flux, dtype=float)
     return {
         "mean": float(np.mean(flux)),
@@ -21,6 +21,8 @@ def extract_statistical_features(flux):
 def extract_signal_features(time, flux, min_period_days=0.1, max_period_days=None):
     """Lomb-Scargle periodogram to find dominant periodicity (e.g. transits, pulsations, rotation).
     Period search is bounded to avoid aliasing noise near the sampling cadence."""
+    from astropy.timeseries import LombScargle  # heavy library: loaded only when this runs
+
     time = np.array(time, dtype=float)
     flux = np.array(flux, dtype=float)
 
