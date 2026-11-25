@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     AUTH_SECRET: str = ""
     TOKEN_HOURS: int = 12
     DEMO_ENABLED: bool = False
+    # Websites allowed to call this backend, separated by commas.
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     class Config:
         env_file = ".env"

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.capabilities import full_analysis_available
 from app.core.database import get_db
 from app.models.models import Investigation, AgentRun, Hypothesis, Evidence
 from app.agents.orchestrator import (
@@ -12,9 +13,22 @@ from app.agents.orchestrator import (
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 
 
+def _require_full_analysis() -> None:
+    """Refuse before anything is written if this server was deployed without the science libraries."""
+    if not full_analysis_available():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Running investigations needs the full analysis libraries, "
+                "which this server does not have. Run them from the admin machine."
+            ),
+        )
+
+
 @router.post("/start/{candidate_id}")
 def start_investigation(candidate_id: str, db: Session = Depends(get_db)):
     """Runs the whole investigation and only responds when it has finished."""
+    _require_full_analysis()
     try:
         return run_investigation(db, candidate_id)
     except ValueError as e:
@@ -28,6 +42,7 @@ def launch_investigation(
     db: Session = Depends(get_db),
 ):
     """Starts an investigation in the background and responds straight away with its ID."""
+    _require_full_analysis()
     try:
         investigation = create_investigation(db, candidate_id)
     except ValueError as e:
